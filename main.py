@@ -1,4 +1,4 @@
-import commands as c
+from GymRepository import GymRepository as gym
 from sys import argv
 
 
@@ -13,15 +13,15 @@ def main(args):
     flags = args[2:]
     match command:
         case "init":
-            c.init(flags)
+            gym.init(flags)
         case "add":
-            c.add(flags)
+            gym.add(flags)
         case "commit":
-            c.commit(flags)
+            gym.commit(flags)
         case "reset":
-            c.reset(flags)
+            gym.reset(flags)
         case "help":
-            c.help(flags)
+            gym.help(flags)
 
 
 if __name__ == "__main__":
