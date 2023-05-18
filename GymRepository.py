@@ -1,6 +1,6 @@
 import os
 from hashlib import sha1
-from Files import create_file_tree, match_files
+from Files import *
 
 
 class GymRepository:
@@ -20,6 +20,11 @@ class GymRepository:
                            "checkout", "branch", "log", "help"]
 
     @staticmethod
+    def _test(args):
+        print(unblobify(args[0],
+                        GymRepository._repository_directory + "/objects").decode())
+
+    @staticmethod
     def init(args):
         """Initiates a gym repository in the current directory"""
 
@@ -30,12 +35,13 @@ class GymRepository:
             return
 
         if GymRepository.repo_exists():
+            print("Already a gym repository.")
             return
 
         os.makedirs(GymRepository._repository_directory)
         create_file_tree(GymRepository._repository_structure,
-                               GymRepository._repository_directory)
-        # TODO: вывод информации на консоль
+                         GymRepository._repository_directory)
+        print(f"Created a repository in {os.getcwd()}")
 
     @staticmethod
     def add(args):
@@ -46,13 +52,19 @@ class GymRepository:
             return
 
         if len(args) != 1:
-            print("Too many arguments! Use only the name to search for")
+            print("Too many arguments! Use only the name of the file or directory")
             return
 
         files_to_add = match_files(args[0])
+        if len(files_to_add) == 0:
+            print(f"Error: {args[0]} matched no files")
+            return
+
         for file in files_to_add:
             GymRepository._update_index(file)
-        # TODO: вывод информации на консоль
+            with open(file, "r") as f:
+                blobify(f.read().encode(),
+                        GymRepository._repository_directory + "/objects")
 
     @staticmethod
     def _update_index(path):
@@ -74,13 +86,12 @@ class GymRepository:
                 new_index.append(entry)
 
         with open(path, 'r') as f:
-            new_index.append(f"{path} {sha1(f.read().encode()).hexdigest()}")
+            entry = f"{path} {sha1(f.read().encode()).hexdigest()}"
+            new_index.append(entry)
+            print(f"Added: {entry}")
 
         with open(GymRepository._repository_directory + "/index", 'w') as index:
-            for entry in new_index:
-                index.write(f"{entry}\n")
-
-        # TODO: вывод информации на консоль
+            index.write(str.join("\n", new_index))
 
     @staticmethod
     def commit(args):
@@ -121,7 +132,6 @@ class GymRepository:
             return
 
         # TODO: выводить информацию о команде
-
 
     @staticmethod
     def repo_exists():

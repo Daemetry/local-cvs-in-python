@@ -1,4 +1,6 @@
 import os
+import zlib
+from hashlib import sha1
 
 
 def create_file_tree(tree, prefix):
@@ -25,3 +27,61 @@ def match_files(path):
         for child in os.listdir(path):
             files += match_files(os.path.join(path, child))
         return files
+
+
+def blobify(data, target_directory):
+    """Creates a blob object from data, creates child directory
+    in target_directory and a file in it, where in writes the data"""
+    # создаем объектный хэш из данных
+    obj_hash = sha1(data).hexdigest()
+
+    # разбиваем хэш на каталоги и имя файла
+    directory = obj_hash[:2]
+    filename = obj_hash[2:]
+
+    # создаем каталог, если он не существует
+    object_directory = os.path.join(target_directory, directory)
+    os.makedirs(object_directory, exist_ok=True)
+
+    # создаем новый файл в объектном каталоге
+    object_filename = os.path.join(object_directory, filename)
+    with open(object_filename, 'wb') as f:
+        # сжимаем данные zlib
+        compressed_data = zlib.compress(data)
+        # записываем заголовок объека
+        header = f'blob {len(data)}\0'.encode()
+        # записываем заголовок, данные и сжатый размер
+        f.write(header)
+        f.write(compressed_data)
+
+    # возвращаем хэш созданного объекта
+    return obj_hash
+
+
+def unblobify(obj_hash, target_directory):
+    """From a hash of the object gets the names of directory and file
+    inside target_directory, where it searches for file and then
+    creates a string from it"""
+
+    # разбиваем хэш на каталоги и имя файла
+    directory = obj_hash[:2]
+    filename = obj_hash[2:]
+
+    # находим путь к файлу объекта
+    object_filename = os.path.join(target_directory, directory, filename)
+
+    # считываем данные из файла объекта
+    with open(object_filename, 'rb') as f:
+        header, compressed_data = f.read().split(b"\x00", 1)
+
+    header = header.strip().decode()
+
+    # распаковываем сжатые данные
+    data = zlib.decompress(compressed_data)
+
+    # проверяем, что распакованные данные имеют нужный размер
+    expected_size = int(header.split()[1])
+    if len(data) != expected_size:
+        raise ValueError(f'Error: expected {expected_size} bytes, got {len(data)} bytes')
+
+    return data

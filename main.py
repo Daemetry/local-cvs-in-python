@@ -3,7 +3,7 @@ from sys import argv
 
 
 def main(args):
-    if len(args) == 0:
+    if len(args) == 1:
         print("Welcome to the gym!")
         print("Time to show 'em commits who's the boss, right?")
         print("Try using a command. To see the list of available commands, you can use 'gym help'")
@@ -22,6 +22,8 @@ def main(args):
             gym.reset(flags)
         case "help":
             gym.help(flags)
+        case "--test":
+            gym._test(flags)
 
 
 if __name__ == "__main__":
