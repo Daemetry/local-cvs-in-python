@@ -3,12 +3,22 @@ from hashlib import sha1
 from Files import *
 
 
+class GymException(Exception):
+    _message: str
+
+    def __init__(self, message):
+        self._message = message
+
+    def __str__(self):
+        return self._message
+
+
 class GymRepository:
     _repository_directory = ".gym"
     _repository_structure = {
         "HEAD": "ref: refs/heads/boss",
-        # "config": config.objToStr({ "core": { "": { "bare": opts.get("bare") == True } } }),
         "objects": {},
+        "backups": {},
         "refs": {
             "heads": {},
             "tags": {}
@@ -20,78 +30,110 @@ class GymRepository:
                            "checkout", "branch", "log", "help"]
 
     @staticmethod
+    def get_index():
+        return GymRepository._repository_directory + "/index"
+
+    @staticmethod
+    def get_backup_index():
+        return GymRepository._repository_directory + "/backups/index"
+
+    @staticmethod
+    def get_log():
+        return GymRepository._repository_directory + "/.log"
+
+    @staticmethod
     def _test(args):
-        print(unblobify(args[0],
-                        GymRepository._repository_directory + "/objects").decode())
+        filename = args[0]
+        with open(GymRepository.get_index(), 'r') as f:
+            index = {x.split()[0]: x.split()[1] for x in f.readlines()}
+
+        filehash = index[filename]
+
+        filedata = unblobify(filehash, GymRepository._repository_directory + "/objects")
+
+        with open(GymRepository._repository_directory + filename, 'wb') as f:
+            f.write(filedata)
+
+        print("File has been successfully recreated")
 
     @staticmethod
     def init(args):
         """Initiates a gym repository in the current directory"""
 
-        if len(args) != 0:
-            print("Hol' up, mate. You're not supposed to do this.\n"
-                  "Creating a repository doesn't require any arguments.\n"
-                  "Perhaps you meant something else?")
-            return
+        if args:
+            raise GymException("init does not accept any parameters.")
 
         if GymRepository.repo_exists():
-            print("Already a gym repository.")
-            return
+            raise GymException("Already a gym repository.")
 
         os.makedirs(GymRepository._repository_directory)
         create_file_tree(GymRepository._repository_structure,
                          GymRepository._repository_directory)
+
         print(f"Created a repository in {os.getcwd()}")
 
     @staticmethod
     def add(args):
         """Adds the current changes to the commit index"""
 
-        if not GymRepository.repo_exists():
-            print("This directory is not a gym repository")
-            return
+        GymRepository.assert_repo()
 
         if len(args) != 1:
-            print("Too many arguments! Use only the name of the file or directory")
-            return
+            raise GymException("\"gym add\" accepts only one argument "
+                               "being the name of the file or directory")
 
         files_to_add = match_files(args[0])
-        if len(files_to_add) == 0:
-            print(f"Error: {args[0]} matched no files")
-            return
+        if not files_to_add:
+            raise GymException(f"Error: {args[0]} matched no files")
 
         for file in files_to_add:
             GymRepository._update_index(file)
-            with open(file, "r") as f:
-                blobify(f.read().encode(),
+            with open(file, "rb") as f:
+                blobify(f.read(),
                         GymRepository._repository_directory + "/objects")
 
     @staticmethod
     def _update_index(path):
         """"""
-        if not GymRepository.repo_exists():
-            print("This directory is not a gym repository")
-            return
+
+        GymRepository.assert_repo()
 
         # Прервать, если path является директорией
         if os.path.isdir(path):
             return
 
-        with open(GymRepository._repository_directory + "/index", 'r') as f:
-            index = f.readlines()
+        if os.path.exists(GymRepository.get_index()):
+            with open(GymRepository.get_index(), 'r') as f:
+                index = f.readlines()
+
+        elif os.path.exists(GymRepository.get_backup_index()):
+            with open(GymRepository.get_backup_index()) as backup:
+                index = backup.readlines()
+
+        else:
+            print("Looks like your index has been deleted externally.\n"
+                  "As well as backup. Your index data is lost.\n"
+                  "Please index everything necessary once more.")
+            open(GymRepository.get_index(), 'w').close()
+            index = []
 
         new_index = []
         for entry in index:
             if not entry.startswith(path):
                 new_index.append(entry)
 
-        with open(path, 'r') as f:
-            entry = f"{path} {sha1(f.read().encode()).hexdigest()}"
+        with open(path, 'rb') as f:
+            entry = f"{path} {sha1(f.read()).hexdigest()}"
             new_index.append(entry)
             print(f"Added: {entry}")
 
-        with open(GymRepository._repository_directory + "/index", 'w') as index:
-            index.write(str.join("\n", new_index))
+        index_content = str.join("\n", new_index)
+        with open(GymRepository.get_index(), 'w') as index:
+            index.write(index_content)
+
+        os.makedirs(GymRepository._repository_directory + "/backups", exist_ok=True)
+        with open(GymRepository.get_backup_index(), 'w') as backup:
+            backup.write(index_content)
 
     @staticmethod
     def commit(args):
@@ -127,15 +169,19 @@ class GymRepository:
             return
 
         if args[0] not in GymRepository._available_commands:
-            print(f"{args[0]} is not a valid command. If you want to see "
+            raise GymException(f"{args[0]} is not a valid command. If you want to see "
                   "the list of available commands, use 'gym help'")
-            return
 
         # TODO: выводить информацию о команде
 
     @staticmethod
     def repo_exists():
         return os.path.exists(GymRepository._repository_directory)
+
+    @staticmethod
+    def assert_repo():
+        if not GymRepository.repo_exists():
+            raise GymException("This directory is not a gym repository.")
 
 
 if __name__ == '__main__':

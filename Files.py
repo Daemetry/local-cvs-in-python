@@ -25,8 +25,38 @@ def match_files(path):
     elif os.path.isdir(path):
         files = []
         for child in os.listdir(path):
+            if child == ".gym":
+                continue
             files += match_files(os.path.join(path, child))
         return files
+
+
+def write_tree(tree):
+    tree_object = ""
+    for key in tree:
+        if isinstance(tree[key], str):
+            tree_object += f'blob {tree[key]} {key}\n'
+        else:
+            subtree = write_tree(tree[key])
+            tree_object += f'tree {subtree} {key}\n'
+    return write(tree_object)
+
+
+def unflatten_tree(flat_tree):
+    tree = {}
+    for path in flat_tree:
+        path_list = path.split("/")
+        node_value = flat_tree[path]
+        current_dict = tree
+
+        for key in path_list[:-1]:
+            if key not in current_dict:
+                current_dict[key] = {}
+            current_dict = current_dict[key]
+
+        current_dict[path_list[-1]] = node_value
+
+    return tree
 
 
 def blobify(data, target_directory):
