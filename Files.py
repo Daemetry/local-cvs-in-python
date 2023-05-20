@@ -32,14 +32,14 @@ def match_files(path):
 
 
 def write_tree(tree):
-    tree_object = ""
+    tree_string = ""
     for key in tree:
         if isinstance(tree[key], str):
-            tree_object += f'blob {tree[key]} {key}\n'
+            tree_string += f'blob {tree[key]} {key}\n'
         else:
             subtree = write_tree(tree[key])
-            tree_object += f'tree {subtree} {key}\n'
-    return write(tree_object)
+            tree_string += f'tree {subtree} {key}\n'
+    return tree_string
 
 
 def unflatten_tree(flat_tree):

@@ -39,6 +39,10 @@ def main(args):
                 gym.reset(flags)
             case "help":
                 gym.help(flags)
+            case "branch":
+                gym.branch(flags)
+            case "tag":
+                gym.tag(flags)
             case "--test":
                 gym._test(flags)
 
