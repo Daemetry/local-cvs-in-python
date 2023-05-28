@@ -3,6 +3,9 @@ import zlib
 from hashlib import sha1
 
 
+encoding = "utf-8"
+
+
 def create_file_tree(tree, prefix):
     for name in tree:
         path = os.path.join(prefix, name)
@@ -79,7 +82,7 @@ def blobify(data, target_directory):
         # сжимаем данные zlib
         compressed_data = zlib.compress(data)
         # записываем заголовок объека
-        header = f'blob {len(data)}\0'.encode()
+        header = f'blob {len(data)}\0'.encode(encoding)
         # записываем заголовок, данные и сжатый размер
         f.write(header)
         f.write(compressed_data)
@@ -90,8 +93,7 @@ def blobify(data, target_directory):
 
 def unblobify(obj_hash, target_directory):
     """From a hash of the object gets the names of directory and file
-    inside target_directory, where it searches for file and then
-    creates a string from it"""
+    inside target_directory, where it searches for file"""
 
     # разбиваем хэш на каталоги и имя файла
     directory = obj_hash[:2]
@@ -104,7 +106,7 @@ def unblobify(obj_hash, target_directory):
     with open(object_filename, 'rb') as f:
         header, compressed_data = f.read().split(b"\x00", 1)
 
-    header = header.strip().decode()
+    header = header.strip().decode(encoding)
 
     # распаковываем сжатые данные
     data = zlib.decompress(compressed_data)
