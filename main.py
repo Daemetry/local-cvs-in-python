@@ -2,6 +2,8 @@ from GymRepository import GymRepository as gym, GymException
 import sys
 from datetime import datetime
 from traceback import print_exception
+from ArgumentParsers import commit_parser, branch_parser, tag_parser
+
 
 
 def log_exception(exc_type, exc_value, exc_traceback):
@@ -34,15 +36,18 @@ def main(args):
             case "add":
                 gym.add(flags)
             case "commit":
-                gym.commit(flags)
+                commit_args = commit_parser.parse_args()
+                gym.commit(commit_args)
             case "reset":
                 gym.reset(flags)
             case "help":
                 gym.help(flags)
             case "branch":
-                gym.branch(flags)
+                branch_args = branch_parser.parse_args()
+                gym.branch(branch_args)
             case "tag":
-                gym.tag(flags)
+                tag_args = tag_parser.parse_args()
+                gym.tag(tag_args)
             case "--test":
                 gym._test(flags)
 

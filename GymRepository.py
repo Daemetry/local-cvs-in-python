@@ -1,6 +1,5 @@
-import os
-from hashlib import sha1
 from Files import *
+import argparse
 
 
 class GymException(Exception):
@@ -200,11 +199,11 @@ class GymRepository:
             f.write(f"hash: {commit_hash}")
 
     @staticmethod
-    def commit(args):
+    def commit(args: argparse.Namespace):
         """Creates a new commit and clears the commit index"""
         GymRepository.assert_repo()
 
-        message = "# message be here"  # TODO: use argparse to pass the message
+        message = args.message
 
         prev_commit_hash = GymRepository._get_previous_commit_hash()
 
@@ -236,27 +235,29 @@ class GymRepository:
         print(f"Commit created: {new_commit_hash}")
 
     @staticmethod
-    def branch(args):
+    def branch(args: argparse.Namespace):
         """Creates a new branch"""
-        pass
+        GymRepository.assert_repo()
+
+        pch = GymRepository._get_previous_commit_hash()
+        GymRepository._create_ref(f"branch/{args.name}", pch)
+        print(f"Created branch {args.name} on commit {pch}")
 
     @staticmethod
-    def tag(args):
+    def tag(args: argparse.Namespace):
         """Creates a tag on the current commit"""
         GymRepository.assert_repo()
 
-        if len(args) != 1:
-            raise GymException("Too many arguments. Pass down only the name of the tag.")
-
         pch = GymRepository._get_previous_commit_hash()
-        GymRepository._create_ref(f"tags/{args[0]}", pch)
-        print(f"Tagged: {pch} with {args[0]}")
+        GymRepository._create_ref(f"tags/{args.name}", pch)
+        print(f"Tagged {pch} with {args.name}")
 
 
     @staticmethod
     def reset(args):
         """Resets to the previous commit"""
         pass
+
 
     @staticmethod
     def log(args):
