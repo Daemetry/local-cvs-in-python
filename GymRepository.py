@@ -100,6 +100,9 @@ class GymRepository:
     @staticmethod
     def _restore(filename, filehash):
         filedata = unblobify(filehash, GymRepository.objects)
+        filedir = os.path.dirname(filename)
+        if filedir:
+            os.makedirs(filedir, exist_ok=True)
         with open(filename, 'wb') as f:
             f.write(filedata)
 
@@ -194,7 +197,7 @@ class GymRepository:
         with open(GymRepository.head, 'r') as head:
             curr_head = head.read().split(": ")
             if curr_head[0] == "ref":
-                with open(GymRepository.get_ref(curr_head[1]), 'r') as branch_head:
+                with open(curr_head[1], 'r') as branch_head:
                     prev_commit_hash = branch_head.read().split(": ")[1]
 
             elif curr_head[0] == "hash":
@@ -251,7 +254,7 @@ class GymRepository:
             with open(GymRepository.head, 'w') as index:
                 index.write(f"hash: {new_commit_hash}")
         elif curr_head[0] == "ref":
-            with open(GymRepository.get_ref(curr_head[1]), 'w') as ref:
+            with open(curr_head[1], 'w') as ref:
                 ref.write(f"hash: {new_commit_hash}")
 
         with open(GymRepository._commits, 'a') as commits:
@@ -351,7 +354,7 @@ class GymRepository:
             case "branch":
                 try:
                     branch_file = GymRepository.get_ref(
-                        args.target if args.target.starts_with("branch/") else f"branch/{args.target}")
+                        args.target if args.target.startswith("branch/") else f"branch/{args.target}")
                     with open(branch_file, 'r') as branch:
                         target_commit_hash = branch.read().split(": ")[1]
                 except FileNotFoundError:
@@ -366,11 +369,19 @@ class GymRepository:
         target_index = unblobify(target_index_hash, GymRepository.objects).decode(encoding)
 
         for file in prev_commit_index.split('\n'):
-            os.remove(file.split(' ')[0])
+            filepath, _ = file.split(' ')
+            os.remove(filepath)
+            filedir = os.path.dirname(filepath)
+            if filedir and not os.listdir(filedir):
+                os.rmdir(filedir)
+
 
         for file in target_index.split('\n'):
-            filename, filehash = file.split(' ')
-            GymRepository._restore(filename, filehash)
+            filepath, filehash = file.split(' ')
+            GymRepository._restore(filepath, filehash)
+
+        with open(GymRepository.index, 'w') as index:
+            index.write(target_index)
 
         print(f"Checked out on {args.target} successfully")
 
