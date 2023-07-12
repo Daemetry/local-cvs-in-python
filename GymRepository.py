@@ -1,17 +1,12 @@
 import os
-
 from Files import *
 import argparse
+from Commit import Commit
+from GymException import GymException
 
 
-class GymException(Exception):
-    _message: str
-
-    def __init__(self, message):
-        self._message = message
-
-    def __str__(self):
-        return self._message
+def library_init():
+    Commit.set_commit_directory(GymRepository.objects)
 
 
 class GymRepository:
@@ -40,20 +35,13 @@ class GymRepository:
     objects = _repository_directory + "/objects"
 
     @staticmethod
-    def get_ref(name):
-        if not name.startswith('refs'):
-            name = "refs/" + name
-        return GymRepository._repository_directory + '/' + name
+    def get_ref(name, reftype):
+        name = os.path.split(name)[1]
+        return f"{GymRepository._repository_directory}/refs/{reftype}/{name}"
 
-    @staticmethod
-    def get_commit(message, tree_hash, previous_commit_hash):
-        return f"message: {message}\n" \
-               f"tree: {tree_hash}\n" \
-               f"previous commit: {previous_commit_hash}"
-
-    @staticmethod
-    def serialize_commit(commit: str):
-        return [prop.split(": ")[1] for prop in commit.split('\n')]
+    # @staticmethod
+    # def serialize_commit(commit: str):
+    #     return [prop.split(": ")[1] for prop in commit.split('\n')]
 
     @staticmethod
     def _index_to_tree():
@@ -96,6 +84,10 @@ class GymRepository:
         print(unblobify(args[0], GymRepository.objects).decode(encoding))
         # GymRepository._ensure_index()
         # print(GymRepository._index_to_tree())
+
+    @staticmethod
+    def _test_runtime():
+        raise BaseException
 
     @staticmethod
     def _restore(filename, filehash):
@@ -197,7 +189,7 @@ class GymRepository:
         with open(GymRepository.head, 'r') as head:
             curr_head = head.read().split(": ")
             if curr_head[0] == "ref":
-                with open(curr_head[1], 'r') as branch_head:
+                with open(GymRepository.get_ref(curr_head[1], reftype="branch"), 'r') as branch_head:
                     prev_commit_hash = branch_head.read().split(": ")[1]
 
             elif curr_head[0] == "hash":
@@ -237,16 +229,14 @@ class GymRepository:
             GymRepository._index_b(), GymRepository.objects
         )
 
-        if prev_commit_hash != "none":
-            prev_commit = unblobify(prev_commit_hash, GymRepository.objects).decode(encoding)
-            (_, prev_tree_hash, _) = GymRepository.serialize_commit(prev_commit)
-            if prev_tree_hash == tree_hash:
-                raise GymException("Nothing to commit, aborting")
+        prev_tree_hash = Commit.unhash(prev_commit_hash).tree_hash
+        if prev_tree_hash == tree_hash:
+            raise GymException("Nothing to commit, aborting")
 
-        new_commit = GymRepository.get_commit(message, tree_hash, prev_commit_hash)
+        new_commit = Commit(message, tree_hash, [prev_commit_hash])
 
         # as the last time, blobify creates a blob object in the objects directory
-        new_commit_hash = blobify(new_commit.encode(encoding), GymRepository.objects)
+        new_commit_hash = new_commit.blobify()
 
         with open(GymRepository.head, 'r') as head:
             curr_head = head.read().split(": ")
@@ -254,12 +244,12 @@ class GymRepository:
             with open(GymRepository.head, 'w') as index:
                 index.write(f"hash: {new_commit_hash}")
         elif curr_head[0] == "ref":
-            with open(curr_head[1], 'w') as ref:
+            with open(GymRepository.get_ref(curr_head[1], reftype="branch"), 'w') as ref:
                 ref.write(f"hash: {new_commit_hash}")
 
         with open(GymRepository._commits, 'a') as commits:
             commits.write(f"hash: {new_commit_hash}\n")
-            commits.write(new_commit)
+            commits.write(str(new_commit))
             commits.write('\n' + '-' * 20 + '\n')
 
         print(f"Commit created: {new_commit_hash}")
@@ -288,9 +278,10 @@ class GymRepository:
         GymRepository.assert_repo()
 
         pch = GymRepository._get_previous_commit_hash()
-        prev_commit = unblobify(pch, GymRepository.objects).decode(encoding)
-        (_, prev_commit_index_hash, _) = GymRepository.serialize_commit(prev_commit)
-        prev_commit_index = unblobify(prev_commit_index_hash, GymRepository.objects).decode(encoding)
+        prev_commit = Commit.unhash(pch)
+
+        # todo a class?
+        prev_commit_index = unblobify(prev_commit.tree_hash, GymRepository.objects).decode(encoding)
 
         # if there are uncommitted changes and no --force is present,
         # discard
@@ -317,7 +308,7 @@ class GymRepository:
             # notifing the user as they are entering DETACHED HEAD state
             case "hash":
                 try:
-                    target_commit = unblobify(args.target, GymRepository.objects).decode(encoding)
+                    target_commit = Commit.unhash(args.target)
                 except FileNotFoundError:
                     raise GymException("No such commit, aborting")
 
@@ -331,17 +322,14 @@ class GymRepository:
             # then unblobify the commit and update head,
             # notifing the user as they are entering DETACHED HEAD state
             case "tag":
+                tag_file = GymRepository.get_ref(args.target, reftype="tag")
                 try:
-                    tag_file = GymRepository.get_ref(
-                        args.target if args.target.startswith("tag")
-                        else f"tag/{args.target}")
-                    print(tag_file)
                     with open(tag_file, 'r') as tag:
                         target_commit_hash = tag.read().split(": ")[1]
                 except FileNotFoundError:
                     raise GymException("No such tag, aborting")
 
-                target_commit = unblobify(target_commit_hash, GymRepository.objects).decode(encoding)
+                target_commit = Commit.unhash(target_commit_hash)
 
                 print("Entering DETACHED HEAD state:\n"
                       "any commits made will be lost upon checkouting elsewhere,\n"
@@ -352,21 +340,19 @@ class GymRepository:
             # when checkouting a branch, open the branch file, extract commit hash,
             # then unblobify the commit and update head
             case "branch":
+                branch_file = GymRepository.get_ref(args.target, reftype="branch")
                 try:
-                    branch_file = GymRepository.get_ref(
-                        args.target if args.target.startswith("branch/") else f"branch/{args.target}")
                     with open(branch_file, 'r') as branch:
                         target_commit_hash = branch.read().split(": ")[1]
                 except FileNotFoundError:
                     raise GymException("No such branch, aborting")
 
-                target_commit = unblobify(target_commit_hash, GymRepository.objects).decode(encoding)
+                target_commit = Commit.unhash(target_commit_hash)
                 with open(GymRepository.head, 'w') as head:
                     head.write(f"ref: {branch_file}")
 
         # noinspection PyUnboundLocalVariable
-        (_, target_index_hash, _) = GymRepository.serialize_commit(target_commit)
-        target_index = unblobify(target_index_hash, GymRepository.objects).decode(encoding)
+        target_index = unblobify(target_commit.tree_hash, GymRepository.objects).decode(encoding)
 
         for file in prev_commit_index.split('\n'):
             filepath, _ = file.split(' ')
@@ -374,7 +360,6 @@ class GymRepository:
             filedir = os.path.dirname(filepath)
             if filedir and not os.listdir(filedir):
                 os.rmdir(filedir)
-
 
         for file in target_index.split('\n'):
             filepath, filehash = file.split(' ')
@@ -419,5 +404,10 @@ class GymRepository:
             raise GymException("This directory is not a gym repository.")
 
 
+# initiating the library
+library_init()
+
+
+# no main here :)))
 if __name__ == '__main__':
     pass

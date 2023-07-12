@@ -1,6 +1,6 @@
 import os.path
 
-from GymRepository import GymRepository as gym, GymException
+from GymRepository import *
 import sys
 from datetime import datetime
 from traceback import print_exception
@@ -8,9 +8,9 @@ from ArgumentParsers import *
 
 
 def log_exception(exc_type, exc_value, exc_traceback):
-    with open(gym.log_file, 'r') as f:
+    with open(GymRepository.log_file, 'r') as f:
         logs = f.read()
-    with open(gym.log_file, 'w') as f:
+    with open(GymRepository.log_file, 'w') as f:
         time = datetime.now().strftime("%Y-%m-%D %H:%M:%S")
         f.write(f"[{time}]\n\n")
         print_exception(exc_type, exc_value, exc_traceback, file=f)
@@ -35,33 +35,38 @@ def main(args):
     flags = args[2:]
     match command:
         case "init":
-            gym.init(flags)
+            GymRepository.init(flags)
+
         case "add":
-            gym.add(flags)
+            GymRepository.add(flags)
 
         case "commit":
             commit_args = commit_parser.parse_args()
-            gym.commit(commit_args)
+            GymRepository.commit(commit_args)
 
         case "checkout":
             checkout_args = checkout_parser.parse_args()
-            gym.checkout(checkout_args)
+            GymRepository.checkout(checkout_args)
 
         case "reset":
-            gym.reset(flags)
+            GymRepository.reset(flags)
+
         case "help":
-            gym.help(flags)
+            GymRepository.help(flags)
 
         case "branch":
             branch_args = branch_parser.parse_args()
-            gym.branch(branch_args)
+            GymRepository.branch(branch_args)
 
         case "tag":
             tag_args = tag_parser.parse_args()
-            gym.tag(tag_args)
+            GymRepository.tag(tag_args)
 
         case "--test":
-            gym._test(flags)
+            GymRepository._test(flags)
+
+        case "--test-error":
+            GymRepository._test_runtime()
 
 
 if __name__ == "__main__":
