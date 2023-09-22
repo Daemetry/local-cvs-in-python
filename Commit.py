@@ -62,7 +62,7 @@ class Commit:
         if not isinstance(commit_hash, str):
             raise TypeError("Expected commit hash to be a string. "
                             "That's just what happens sometimes :P")
-        if commit_hash is "none":
+        if commit_hash == "none":
             return Commit(None, None, None)
         supposedly_commit = unblobify(commit_hash, Commit._commit_directory).decode(encoding)
         serialised = Commit.serialize(supposedly_commit)

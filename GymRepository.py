@@ -281,6 +281,7 @@ class GymRepository:
         prev_commit = Commit.unhash(pch)
 
         # todo a class?
+        # выделить класс индексов чи шо?
         prev_commit_index = unblobify(prev_commit.tree_hash, GymRepository.objects).decode(encoding)
 
         # if there are uncommitted changes and no --force is present,
