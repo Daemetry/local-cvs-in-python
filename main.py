@@ -62,8 +62,17 @@ def main(args):
             tag_args = tag_parser.parse_args()
             GymRepository.tag(tag_args)
 
+        # unnecessary?
+        case "peek":
+            # todo: upon peek onto a hash open a file that is content-identical to hashed
+            pass
+
+        # dev tools :)
         case "--test":
             GymRepository._test(flags)
+
+        case "--htt":
+            GymRepository._htt(flags)
 
         case "--test-error":
             GymRepository._test_runtime()

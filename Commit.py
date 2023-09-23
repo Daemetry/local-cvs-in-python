@@ -17,9 +17,9 @@ class Commit:
     def tree_hash(self):
         return self._tree_hash
 
-    # @property
-    # def tree(self):
-    #     pass
+    @property
+    def tree(self):
+        return unblobify(self._tree_hash, Commit._commit_directory).decode(encoding)
 
     @property
     def pchs(self):
@@ -40,17 +40,19 @@ class Commit:
         return blobify(self.encode(), Commit._commit_directory)
 
     @staticmethod
-    def set_commit_directory(directory):
+    def set_commit_directory(directory: str):
         if not isinstance(directory, str):
             raise TypeError("Expected directory to be a string. "
                             "That's just what happens sometimes :P")
+
         Commit._commit_directory = directory
 
     @staticmethod
-    def serialize(commit):
+    def serialize(commit: str):
         if not isinstance(commit, str):
             raise TypeError("Expected commit to be a string. "
                             "That's just what happens sometimes :P")
+
         try:
             message, tree, pch = [e.split(': ')[1] for e in commit.split('\n')]
             return message, tree, pch
@@ -58,12 +60,41 @@ class Commit:
             return None
 
     @staticmethod
-    def unhash(commit_hash):
+    def unhash(commit_hash: str):
         if not isinstance(commit_hash, str):
             raise TypeError("Expected commit hash to be a string. "
                             "That's just what happens sometimes :P")
+
         if commit_hash == "none":
             return Commit(None, None, None)
         supposedly_commit = unblobify(commit_hash, Commit._commit_directory).decode(encoding)
         serialised = Commit.serialize(supposedly_commit)
         return Commit(serialised[0], serialised[1], eval(serialised[2])) if serialised else None
+
+    @staticmethod
+    def diff(from_commit_hash: str, to_commit_hash: str):
+        """Computes difference between 'from' commit and 'to' commit,
+        with assumption that 'from' is the starting point, and 'to' is the destination"""
+
+        # commit trees in form of strings
+        from_commit_tree = Commit.unhash(from_commit_hash).tree
+        to_commit_tree = Commit.unhash(to_commit_hash).tree
+
+        # converting to dictionaries of form { filename: filehash, ... }
+        from_commit_tree = {filename: filehash for filename, filehash in map(str.split, from_commit_tree.split('\n'))}
+        to_commit_tree = {filename: filehash for filename, filehash in map(str.split, to_commit_tree.split('\n'))}
+
+        difference = []
+        for filename in from_commit_tree.keys():
+            if filename not in to_commit_tree.keys():
+                difference.append(f"Deleted: {filename} {from_commit_tree[filename]}")
+                continue
+            if from_commit_tree[filename] != to_commit_tree[filename]:
+                difference.append(f"Changed: {filename} {from_commit_tree[filename]} "
+                                  f"-> {to_commit_tree[filename]}")
+
+        for filename in to_commit_tree.keys():
+            if filename not in from_commit_tree.keys():
+                difference.append(f"Added: {filename} {to_commit_tree[filename]}")
+
+        return str.join('\n', sorted(difference))

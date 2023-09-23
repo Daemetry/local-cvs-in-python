@@ -1,6 +1,5 @@
-import os
-from Files import *
 import argparse
+from Files import *
 from Commit import Commit
 from GymException import GymException
 
@@ -68,22 +67,23 @@ class GymRepository:
         return GymRepository._index().encode(encoding)
 
     @staticmethod
+    def _index_cull():
+        index = GymRepository._index().split('\n')
+        new_index = []
+        for file in index:
+            if os.path.exists(file.split()[0]):
+                new_index.append(file)
+        with open(GymRepository.index, 'w') as index:
+            index.write(str.join('\n', new_index))
+
+    @staticmethod
     def _test(args):
-        # filename = args[0]
-        # with open(GymRepository.get_index(), 'r') as f:
-        #     index = {x.split()[0]: x.split()[1] for x in f.readlines()}
-        #
-        # filehash = index[filename]
-        #
-        # filedata = unblobify(filehash, GymRepository._repository_directory + "/objects")
-        #
-        # with open(GymRepository._repository_directory + filename, 'wb') as f:
-        #     f.write(filedata)
-        #
-        # print("File has been successfully recreated")
+
+        print(Commit.diff(args[0], args[1]))
+
+    @staticmethod
+    def _htt(args):
         print(unblobify(args[0], GymRepository.objects).decode(encoding))
-        # GymRepository._ensure_index()
-        # print(GymRepository._index_to_tree())
 
     @staticmethod
     def _test_runtime():
@@ -206,14 +206,14 @@ class GymRepository:
         path1 = GymRepository._repository_directory + f"/refs/branch/{name}"
         path2 = GymRepository._repository_directory + f"/refs/{name}"
         return os.path.exists(path1) or \
-               (name.startswith("branch") and os.path.exists(path2))
+            (name.startswith("branch") and os.path.exists(path2))
 
     @staticmethod
     def _is_tag(name: str) -> bool:
         path1 = GymRepository._repository_directory + f"/refs/tag/{name}"
         path2 = GymRepository._repository_directory + f"/refs/{name}"
         return os.path.exists(path1) or \
-               (name.startswith("tag") and os.path.exists(path2))
+            (name.startswith("tag") and os.path.exists(path2))
 
     @staticmethod
     def commit(args: argparse.Namespace):
@@ -224,7 +224,11 @@ class GymRepository:
 
         prev_commit_hash = GymRepository._get_previous_commit_hash()
 
-        # as side effect, blobify creates the file in the objects system
+        # print(f"Index pre-cull: {GymRepository._index()}")
+        GymRepository._index_cull()
+        # print(f"Index post-cull: {GymRepository._index()}")
+
+        # as side effect, blobify creates the file in the object system
         tree_hash = blobify(
             GymRepository._index_b(), GymRepository.objects
         )
@@ -241,8 +245,8 @@ class GymRepository:
         with open(GymRepository.head, 'r') as head:
             curr_head = head.read().split(": ")
         if curr_head[0] == "hash":
-            with open(GymRepository.head, 'w') as index:
-                index.write(f"hash: {new_commit_hash}")
+            with open(GymRepository.head, 'w') as head:
+                head.write(f"hash: {new_commit_hash}")
         elif curr_head[0] == "ref":
             with open(GymRepository.get_ref(curr_head[1], reftype="branch"), 'w') as ref:
                 ref.write(f"hash: {new_commit_hash}")
@@ -252,7 +256,8 @@ class GymRepository:
             commits.write(str(new_commit))
             commits.write('\n' + '-' * 20 + '\n')
 
-        print(f"Commit created: {new_commit_hash}")
+        print(f"Commit created: {new_commit_hash}\n")
+        print(Commit.diff(prev_commit_hash, new_commit_hash))
 
     @staticmethod
     def branch(args: argparse.Namespace):
