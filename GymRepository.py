@@ -1,4 +1,6 @@
 import argparse
+from collections import namedtuple
+
 from Files import *
 from Commit import Commit
 from GymException import GymException
@@ -185,7 +187,7 @@ class GymRepository:
         open(GymRepository.index, 'w').close()
 
     @staticmethod
-    def _get_previous_commit_hash():
+    def _get_previous_commit_hash(detached_ok=True):
         with open(GymRepository.head, 'r') as head:
             curr_head = head.read().split(": ")
             if curr_head[0] == "ref":
@@ -193,6 +195,8 @@ class GymRepository:
                     prev_commit_hash = branch_head.read().split(": ")[1]
 
             elif curr_head[0] == "hash":
+                if not detached_ok:
+                    raise GymException("DETACHED HEAD state found. Aborting.")
                 prev_commit_hash = curr_head[1]
         return prev_commit_hash
 
@@ -224,11 +228,9 @@ class GymRepository:
 
         prev_commit_hash = GymRepository._get_previous_commit_hash()
 
-        # print(f"Index pre-cull: {GymRepository._index()}")
         GymRepository._index_cull()
-        # print(f"Index post-cull: {GymRepository._index()}")
 
-        # as side effect, blobify creates the file in the object system
+        # as an intended side effect, blobify creates the file in the object system
         tree_hash = blobify(
             GymRepository._index_b(), GymRepository.objects
         )
@@ -257,14 +259,15 @@ class GymRepository:
             commits.write('\n' + '-' * 20 + '\n')
 
         print(f"Commit created: {new_commit_hash}\n")
-        print(Commit.diff(prev_commit_hash, new_commit_hash))
+        if prev_commit_hash != "none":
+            print(Commit.diff(prev_commit_hash, new_commit_hash))
 
     @staticmethod
     def branch(args: argparse.Namespace):
         """Creates a new branch"""
         GymRepository.assert_repo()
 
-        pch = GymRepository._get_previous_commit_hash()
+        pch = GymRepository._get_previous_commit_hash(detached_ok=True)
         GymRepository._create_ref(f"branch/{args.name}", pch)
         print(f"Created branch {args.name} on commit {pch}")
 
@@ -273,7 +276,7 @@ class GymRepository:
         """Creates a tag on the current commit"""
         GymRepository.assert_repo()
 
-        pch = GymRepository._get_previous_commit_hash()
+        pch = GymRepository._get_previous_commit_hash(detached_ok=True)
         GymRepository._create_ref(f"tag/{args.name}", pch)
         print(f"Tagged {pch} with {args.name}")
 
@@ -282,7 +285,7 @@ class GymRepository:
         """Checks out on the commit (if hash given) or branch/tag (if name given)"""
         GymRepository.assert_repo()
 
-        pch = GymRepository._get_previous_commit_hash()
+        pch = GymRepository._get_previous_commit_hash(detached_ok=True)
         prev_commit = Commit.unhash(pch)
 
         # todo a class?
@@ -375,6 +378,63 @@ class GymRepository:
             index.write(target_index)
 
         print(f"Checked out on {args.target} successfully")
+
+    @staticmethod
+    def merge(args: argparse.Namespace):
+        GymRepository.assert_repo()
+
+        current_commit_hash = GymRepository._get_previous_commit_hash(detached_ok=False)
+        with open(GymRepository.get_ref(args.name, reftype="branch")) as branch_head:
+            incoming_commit_hash = branch_head.read().split(": ")[1]
+
+        current_commit = Commit.unhash(current_commit_hash)
+        incoming_commit = Commit.unhash(incoming_commit_hash)
+
+        # if there are uncommitted changes, discard
+        if current_commit.tree != GymRepository._index():
+            raise GymException("Uncommitted changes found, aborting.\n"
+                               "There is no merging regardless, take it or leave it.")
+
+        current_commit_files = {x: y for x, y in
+                                [piece.strip().split(": ") for piece in current_commit.tree.split('\n')]}
+        current_commit_filenames = set(current_commit_files.keys())
+
+        incoming_commit_files = {x: y for x, y in
+                                 [piece.strip().split(": ") for piece in incoming_commit.tree.split('\n')]}
+        incoming_commit_filenames = set(incoming_commit_files.keys())
+
+        both_commits_filenames = current_commit_filenames.intersection(incoming_commit_filenames)
+
+        for filename in incoming_commit_filenames.difference(both_commits_filenames):
+            GymRepository._restore(filename, incoming_commit_filenames[filename])
+
+        for filename in both_commits_filenames:
+            if current_commit_filenames[filename] == incoming_commit_filenames[filename]:
+                continue
+            filename_current = add_to_filename(filename, "_current")
+            os.rename(filename, filename_current)
+            filename_incoming = add_to_filename(filename, "_incoming")
+            GymRepository._restore(filename_incoming, incoming_commit_files[filename])
+
+        non_conflicted_files = [f"{non_conflicted_file} {current_commit_files[non_conflicted_file]}"
+                                for non_conflicted_file in current_commit_filenames.difference(both_commits_filenames)]
+        non_conflicted_files += [f"{non_conflicted_file} {incoming_commit_files[non_conflicted_file]}"
+                                 for non_conflicted_file in incoming_commit_filenames.difference(both_commits_filenames)]
+        non_conflicted_files.sort()
+
+        new_index = "\n".join(non_conflicted_files)
+        with open(GymRepository.index, "w") as index:
+            index.write(new_index)
+
+        if not both_commits_filenames:
+            with open(GymRepository.head) as head:
+                current_branch = head.read().split(": ")[1].split("/")[-1]
+            args_mocked = namedtuple("args", ["message"])(f"# Merged {args.name} into {current_branch}")
+            # noinspection PyTypeChecker
+            GymRepository.commit(args_mocked)
+        else:
+            print("Merge conflicts have occured. Resolve them manually, \n"
+                  "then add and commit whatever changes necessary.")
 
     @staticmethod
     def reset(args):

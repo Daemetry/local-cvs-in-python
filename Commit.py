@@ -1,5 +1,5 @@
 from Files import blobify, unblobify, encoding
-
+from difflib import unified_diff
 
 class Commit:
     _commit_directory: str
@@ -66,7 +66,7 @@ class Commit:
                             "That's just what happens sometimes :P")
 
         if commit_hash == "none":
-            return Commit(None, None, None)
+            return None
         supposedly_commit = unblobify(commit_hash, Commit._commit_directory).decode(encoding)
         serialised = Commit.serialize(supposedly_commit)
         return Commit(serialised[0], serialised[1], eval(serialised[2])) if serialised else None
@@ -75,6 +75,8 @@ class Commit:
     def diff(from_commit_hash: str, to_commit_hash: str):
         """Computes difference between 'from' commit and 'to' commit,
         with assumption that 'from' is the starting point, and 'to' is the destination"""
+        if not from_commit_hash or not to_commit_hash:
+            raise GymException("")
 
         # commit trees in form of strings
         from_commit_tree = Commit.unhash(from_commit_hash).tree
@@ -89,12 +91,35 @@ class Commit:
             if filename not in to_commit_tree.keys():
                 difference.append(f"Deleted: {filename} {from_commit_tree[filename]}")
                 continue
+
             if from_commit_tree[filename] != to_commit_tree[filename]:
-                difference.append(f"Changed: {filename} {from_commit_tree[filename]} "
-                                  f"-> {to_commit_tree[filename]}")
+                file_diff = Commit.file_diff_by_hash(from_commit_tree[filename], to_commit_tree[filename])
+                file_diff = [f"At {pos}: {change}" for pos, change in file_diff]
+                difference.append(f"Changed: {filename} {from_commit_tree[filename][:5]}... "
+                                  f"-> {to_commit_tree[filename][:5]}...\n"
+                                  + '\n'.join(file_diff))
 
         for filename in to_commit_tree.keys():
             if filename not in from_commit_tree.keys():
                 difference.append(f"Added: {filename} {to_commit_tree[filename]}")
 
         return str.join('\n', sorted(difference))
+
+    @staticmethod
+    def file_diff_by_hash(from_file_hash: str, to_file_hash: str):
+        from_file = unblobify(from_file_hash, Commit._commit_directory).decode(encoding)
+        to_file = unblobify(to_file_hash, Commit._commit_directory).decode(encoding)
+
+        diff = unified_diff(from_file.split('\n'), to_file.split('\n'))
+        diff = list(diff)[2:] # Skip the first two lines
+        # since its just file names (empty because none were given to the function)
+        enumerated_diff = []
+        deletions_counter = 0
+        for i, diff_line in enumerate(diff):
+            if diff_line.startswith('-') or diff_line.startswith('+'):
+                enumerated_diff.append((i - deletions_counter, diff_line))
+                deletions_counter += 1 if diff_line.startswith('-') else 0
+
+        # enumerated_diff = list(filter(lambda x: x[1].startswith('+') or x[1].startswith('-'), enumerated_diff))
+
+        return enumerated_diff

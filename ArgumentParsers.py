@@ -37,4 +37,11 @@ checkout_parser.add_argument("target", metavar="name/hash", action="store",
 checkout_parser.add_argument('-f', "--force", action="store_true", dest="force",
                              help="if present, any indexed changes will be discarded")
 
+
+merge_parser = argparse.ArgumentParser(description="merge")
+merge_parser.add_argument("command_name")
+merge_parser.add_argument("branch", metavar="name", action="store",
+                          help="Branch that is going to be merged onto HEAD")
+
+
 log_parser = argparse.ArgumentParser(description="help ")

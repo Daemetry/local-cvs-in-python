@@ -2,7 +2,6 @@ import os
 import zlib
 from hashlib import sha1
 
-
 encoding = "utf-8"
 
 
@@ -60,6 +59,14 @@ def unflatten_tree(flat_tree):
         current_dict[path_list[-1]] = node_value
 
     return tree
+
+
+def add_to_filename(filepath, addition):
+    filename_current = os.path.split(filepath)
+    temp = filename_current[1].split('.')
+    temp[-2 if len(temp) > 1 else 0] += addition
+    temp = '.'.join(temp)
+    return os.path.join(filename_current[0], temp)
 
 
 def blobify(data, target_directory):

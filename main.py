@@ -34,38 +34,41 @@ def main(args):
     command = args[1]
     flags = args[2:]
     match command:
-        case "init":
-            GymRepository.init(flags)
-
         case "add":
             GymRepository.add(flags)
-
-        case "commit":
-            commit_args = commit_parser.parse_args()
-            GymRepository.commit(commit_args)
-
-        case "checkout":
-            checkout_args = checkout_parser.parse_args()
-            GymRepository.checkout(checkout_args)
-
-        case "reset":
-            GymRepository.reset(flags)
-
-        case "help":
-            GymRepository.help(flags)
 
         case "branch":
             branch_args = branch_parser.parse_args()
             GymRepository.branch(branch_args)
 
+        case "checkout":
+            checkout_args = checkout_parser.parse_args()
+            GymRepository.checkout(checkout_args)
+
+        case "commit":
+            commit_args = commit_parser.parse_args()
+            GymRepository.commit(commit_args)
+
+        case "help":
+            GymRepository.help(flags)
+
+        case "init":
+            GymRepository.init(flags)
+
+        case "log":
+            raise NotImplementedError
+
+        case "merge":
+            merge_args = merge_parser.parse_args()
+            GymRepository.merge(merge_args)
+
+        case "reset":
+            raise NotImplementedError
+            # GymRepository.reset(flags)
+
         case "tag":
             tag_args = tag_parser.parse_args()
             GymRepository.tag(tag_args)
-
-        # unnecessary?
-        case "peek":
-            # todo: upon peek onto a hash open a file that is content-identical to hashed
-            pass
 
         # dev tools :)
         case "--test":
