@@ -187,7 +187,7 @@ class GymRepository:
         open(GymRepository.index, 'w').close()
 
     @staticmethod
-    def _get_previous_commit_hash(detached_ok=True):
+    def _get_current_commit_hash(detached_ok=True):
         with open(GymRepository.head, 'r') as head:
             curr_head = head.read().split(": ")
             if curr_head[0] == "ref":
@@ -226,7 +226,7 @@ class GymRepository:
 
         message = args.message
 
-        prev_commit_hash = GymRepository._get_previous_commit_hash()
+        prev_commit_hash = GymRepository._get_current_commit_hash()
 
         GymRepository._index_cull()
 
@@ -235,9 +235,10 @@ class GymRepository:
             GymRepository._index_b(), GymRepository.objects
         )
 
-        prev_tree_hash = Commit.unhash(prev_commit_hash).tree_hash
-        if prev_tree_hash == tree_hash:
-            raise GymException("Nothing to commit, aborting")
+        if prev_commit_hash != "none":
+            prev_tree_hash = Commit.unhash(prev_commit_hash).tree_hash
+            if prev_tree_hash == tree_hash:
+                raise GymException("Nothing to commit, aborting")
 
         new_commit = Commit(message, tree_hash, [prev_commit_hash])
 
@@ -267,7 +268,7 @@ class GymRepository:
         """Creates a new branch"""
         GymRepository.assert_repo()
 
-        pch = GymRepository._get_previous_commit_hash(detached_ok=True)
+        pch = GymRepository._get_current_commit_hash(detached_ok=True)
         GymRepository._create_ref(f"branch/{args.name}", pch)
         print(f"Created branch {args.name} on commit {pch}")
 
@@ -276,7 +277,7 @@ class GymRepository:
         """Creates a tag on the current commit"""
         GymRepository.assert_repo()
 
-        pch = GymRepository._get_previous_commit_hash(detached_ok=True)
+        pch = GymRepository._get_current_commit_hash(detached_ok=True)
         GymRepository._create_ref(f"tag/{args.name}", pch)
         print(f"Tagged {pch} with {args.name}")
 
@@ -285,7 +286,7 @@ class GymRepository:
         """Checks out on the commit (if hash given) or branch/tag (if name given)"""
         GymRepository.assert_repo()
 
-        pch = GymRepository._get_previous_commit_hash(detached_ok=True)
+        pch = GymRepository._get_current_commit_hash(detached_ok=True)
         prev_commit = Commit.unhash(pch)
 
         # todo a class?
@@ -383,7 +384,7 @@ class GymRepository:
     def merge(args: argparse.Namespace):
         GymRepository.assert_repo()
 
-        current_commit_hash = GymRepository._get_previous_commit_hash(detached_ok=False)
+        current_commit_hash = GymRepository._get_current_commit_hash(detached_ok=False)
         with open(GymRepository.get_ref(args.name, reftype="branch")) as branch_head:
             incoming_commit_hash = branch_head.read().split(": ")[1]
 
@@ -439,7 +440,22 @@ class GymRepository:
     @staticmethod
     def reset(args):
         """Resets to the previous commit"""
-        pass
+        GymRepository.assert_repo()
+
+        try:
+            current_commit = GymRepository._get_current_commit_hash(detached_ok=False)
+        except GymException as e:
+            raise GymException("Reset is impossible in DETACHED HEAD state, aborting."
+                               )
+        previous_commit = Commit.unhash(current_commit).pchs[0]
+        with open(GymRepository.head, 'r') as head:
+            branch = head.read().split(": ")[1]
+            with open(branch, 'w') as b:
+                b.write(f"hash: {previous_commit}")
+
+        args_mocked = namedtuple("args", ["target"])(branch.split('/', 1)[1])
+        # noinspection PyTypeChecker
+        GymRepository.checkout(args_mocked)
 
     @staticmethod
     def log(args):
