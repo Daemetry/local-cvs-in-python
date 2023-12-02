@@ -210,14 +210,14 @@ class GymRepository:
         path1 = GymRepository._repository_directory + f"/refs/branch/{name}"
         path2 = GymRepository._repository_directory + f"/refs/{name}"
         return os.path.exists(path1) or \
-            (name.startswith("branch") and os.path.exists(path2))
+               (name.startswith("branch") and os.path.exists(path2))
 
     @staticmethod
     def _is_tag(name: str) -> bool:
         path1 = GymRepository._repository_directory + f"/refs/tag/{name}"
         path2 = GymRepository._repository_directory + f"/refs/{name}"
         return os.path.exists(path1) or \
-            (name.startswith("tag") and os.path.exists(path2))
+               (name.startswith("tag") and os.path.exists(path2))
 
     @staticmethod
     def commit(args: argparse.Namespace):
@@ -385,7 +385,7 @@ class GymRepository:
         GymRepository.assert_repo()
 
         current_commit_hash = GymRepository._get_current_commit_hash(detached_ok=False)
-        with open(GymRepository.get_ref(args.name, reftype="branch")) as branch_head:
+        with open(GymRepository.get_ref(args.branch, reftype="branch")) as branch_head:
             incoming_commit_hash = branch_head.read().split(": ")[1]
 
         current_commit = Commit.unhash(current_commit_hash)
@@ -397,40 +397,47 @@ class GymRepository:
                                "There is no merging regardless, take it or leave it.")
 
         current_commit_files = {x: y for x, y in
-                                [piece.strip().split(": ") for piece in current_commit.tree.split('\n')]}
+                                [piece.strip().split(" ") for piece in current_commit.tree.split('\n')]}
         current_commit_filenames = set(current_commit_files.keys())
 
         incoming_commit_files = {x: y for x, y in
-                                 [piece.strip().split(": ") for piece in incoming_commit.tree.split('\n')]}
+                                 [piece.strip().split(" ") for piece in incoming_commit.tree.split('\n')]}
         incoming_commit_filenames = set(incoming_commit_files.keys())
 
         both_commits_filenames = current_commit_filenames.intersection(incoming_commit_filenames)
 
         for filename in incoming_commit_filenames.difference(both_commits_filenames):
-            GymRepository._restore(filename, incoming_commit_filenames[filename])
+            GymRepository._restore(filename, incoming_commit_files[filename])
+
+        non_conflicted_files = {non_conflicted_file: current_commit_files[non_conflicted_file]
+                                for non_conflicted_file in
+                                     current_commit_filenames.difference(both_commits_filenames)}
+        non_conflicted_files.update({non_conflicted_file: incoming_commit_files[non_conflicted_file]
+                                for non_conflicted_file in
+                                     incoming_commit_filenames.difference(both_commits_filenames)})
 
         for filename in both_commits_filenames:
-            if current_commit_filenames[filename] == incoming_commit_filenames[filename]:
+            if current_commit_files[filename] == incoming_commit_files[filename]:
+                non_conflicted_files[filename] = current_commit_files[filename]
                 continue
             filename_current = add_to_filename(filename, "_current")
             os.rename(filename, filename_current)
             filename_incoming = add_to_filename(filename, "_incoming")
             GymRepository._restore(filename_incoming, incoming_commit_files[filename])
 
-        non_conflicted_files = [f"{non_conflicted_file} {current_commit_files[non_conflicted_file]}"
-                                for non_conflicted_file in current_commit_filenames.difference(both_commits_filenames)]
-        non_conflicted_files += [f"{non_conflicted_file} {incoming_commit_files[non_conflicted_file]}"
-                                 for non_conflicted_file in incoming_commit_filenames.difference(both_commits_filenames)]
-        non_conflicted_files.sort()
-
-        new_index = "\n".join(non_conflicted_files)
+        new_index = []
+        for key in non_conflicted_files.keys():
+            new_index += [f"{key} {non_conflicted_files[key]}"]
+        new_index = "\n".join(sorted(new_index))
         with open(GymRepository.index, "w") as index:
             index.write(new_index)
 
-        if not both_commits_filenames:
+        if not both_commits_filenames.difference(
+                set(non_conflicted_files.keys()).intersection(both_commits_filenames)
+        ):
             with open(GymRepository.head) as head:
                 current_branch = head.read().split(": ")[1].split("/")[-1]
-            args_mocked = namedtuple("args", ["message"])(f"# Merged {args.name} into {current_branch}")
+            args_mocked = namedtuple("args", ["message"])(f"# Merged {args.branch} into {current_branch}")
             # noinspection PyTypeChecker
             GymRepository.commit(args_mocked)
         else:
@@ -445,15 +452,15 @@ class GymRepository:
         try:
             current_commit = GymRepository._get_current_commit_hash(detached_ok=False)
         except GymException as e:
-            raise GymException("Reset is impossible in DETACHED HEAD state, aborting."
-                               )
+            raise GymException("Reset is impossible in DETACHED HEAD state, aborting.")
+
         previous_commit = Commit.unhash(current_commit).pchs[0]
         with open(GymRepository.head, 'r') as head:
             branch = head.read().split(": ")[1]
-            with open(branch, 'w') as b:
+            with open(GymRepository.get_ref(branch, reftype="branch"), 'w') as b:
                 b.write(f"hash: {previous_commit}")
 
-        args_mocked = namedtuple("args", ["target"])(branch.split('/', 1)[1])
+        args_mocked = namedtuple("args", ["target", "force"])(branch.split('/', 1)[1], True)
         # noinspection PyTypeChecker
         GymRepository.checkout(args_mocked)
 
@@ -488,7 +495,6 @@ class GymRepository:
 
 # initiating the library
 library_init()
-
 
 # no main here :)))
 if __name__ == '__main__':

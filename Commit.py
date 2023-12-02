@@ -66,24 +66,28 @@ class Commit:
                             "That's just what happens sometimes :P")
 
         if commit_hash == "none":
-            return None
+            return Commit("", "", ["none"])
         supposedly_commit = unblobify(commit_hash, Commit._commit_directory).decode(encoding)
         serialised = Commit.serialize(supposedly_commit)
-        return Commit(serialised[0], serialised[1], eval(serialised[2])) if serialised else None
+        return Commit(serialised[0], serialised[1], eval(serialised[2])) if serialised \
+            else None
 
     @staticmethod
     def diff(from_commit_hash: str, to_commit_hash: str):
         """Computes difference between 'from' commit and 'to' commit,
         with assumption that 'from' is the starting point, and 'to' is the destination"""
         if not from_commit_hash or not to_commit_hash:
-            raise GymException("")
+            raise Exception
 
         # commit trees in form of strings
-        from_commit_tree = Commit.unhash(from_commit_hash).tree
+        from_commit_tree = Commit.unhash(from_commit_hash).tree if from_commit_hash != "none" else ""
         to_commit_tree = Commit.unhash(to_commit_hash).tree
 
         # converting to dictionaries of form { filename: filehash, ... }
-        from_commit_tree = {filename: filehash for filename, filehash in map(str.split, from_commit_tree.split('\n'))}
+        if from_commit_tree:
+            from_commit_tree = {filename: filehash for filename, filehash in map(str.split, from_commit_tree.split('\n'))}
+        else:
+            from_commit_tree = {}
         to_commit_tree = {filename: filehash for filename, filehash in map(str.split, to_commit_tree.split('\n'))}
 
         difference = []

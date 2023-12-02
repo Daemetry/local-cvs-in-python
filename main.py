@@ -63,8 +63,7 @@ def main(args):
             GymRepository.merge(merge_args)
 
         case "reset":
-            raise NotImplementedError
-            # GymRepository.reset(flags)
+            GymRepository.reset(flags)
 
         case "tag":
             tag_args = tag_parser.parse_args()
