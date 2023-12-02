@@ -49,21 +49,12 @@ def main(args):
             commit_args = commit_parser.parse_args()
             GymRepository.commit(commit_args)
 
-        case "help":
-            GymRepository.help(flags)
-
         case "init":
             GymRepository.init(flags)
-
-        case "log":
-            raise NotImplementedError
 
         case "merge":
             merge_args = merge_parser.parse_args()
             GymRepository.merge(merge_args)
-
-        case "reset":
-            GymRepository.reset(flags)
 
         case "tag":
             tag_args = tag_parser.parse_args()

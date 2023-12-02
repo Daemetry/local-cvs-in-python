@@ -1,16 +1,17 @@
 import argparse
+import sys
 from collections import namedtuple
 
 from Files import *
 from Commit import Commit
 from GymException import GymException
 
-
 def library_init():
     Commit.set_commit_directory(GymRepository.objects)
 
 
 class GymRepository:
+
     _repository_directory = ".gym"
     _repository_structure = {
         "HEAD": "ref: refs/branch/boss",
@@ -192,13 +193,13 @@ class GymRepository:
             curr_head = head.read().split(": ")
             if curr_head[0] == "ref":
                 with open(GymRepository.get_ref(curr_head[1], reftype="branch"), 'r') as branch_head:
-                    prev_commit_hash = branch_head.read().split(": ")[1]
+                    cur_commit_hash = branch_head.read().split(": ")[1]
 
             elif curr_head[0] == "hash":
                 if not detached_ok:
                     raise GymException("DETACHED HEAD state found. Aborting.")
-                prev_commit_hash = curr_head[1]
-        return prev_commit_hash
+                cur_commit_hash = curr_head[1]
+        return cur_commit_hash
 
     @staticmethod
     def _create_ref(ref, commit_hash):
@@ -303,6 +304,7 @@ class GymRepository:
         # if for some reason there are branch and tag with the same name,
         # clarifications needed, so discard
         mode = "hash"
+        print(args.target)
         if GymRepository._is_branch(args.target):
             mode = "branch"
         if GymRepository._is_tag(args.target):
@@ -443,45 +445,6 @@ class GymRepository:
         else:
             print("Merge conflicts have occured. Resolve them manually, \n"
                   "then add and commit whatever changes necessary.")
-
-    @staticmethod
-    def reset(args):
-        """Resets to the previous commit"""
-        GymRepository.assert_repo()
-
-        try:
-            current_commit = GymRepository._get_current_commit_hash(detached_ok=False)
-        except GymException as e:
-            raise GymException("Reset is impossible in DETACHED HEAD state, aborting.")
-
-        previous_commit = Commit.unhash(current_commit).pchs[0]
-        with open(GymRepository.head, 'r') as head:
-            branch = head.read().split(": ")[1]
-            with open(GymRepository.get_ref(branch, reftype="branch"), 'w') as b:
-                b.write(f"hash: {previous_commit}")
-
-        args_mocked = namedtuple("args", ["target", "force"])(branch.split('/', 1)[1], True)
-        # noinspection PyTypeChecker
-        GymRepository.checkout(args_mocked)
-
-    @staticmethod
-    def log(args):
-        """Prints the log of actions upon repository"""
-        pass
-
-    @staticmethod
-    def help(args):
-        """Use this command in case you need to get to know other ones better"""
-        if len(args) != 1:
-            print(f"Available commands: {str.join(', ', GymRepository._available_commands)}")
-            print("Use \"gym help [command]\" in order to get usage of the command")
-            return
-
-        if args[0] not in GymRepository._available_commands:
-            raise GymException(f"{args[0]} is not a valid command. If you want to see "
-                               "the list of available commands, use 'gym help'")
-
-        # TODO: выводить информацию о команде
 
     @staticmethod
     def repo_exists():
