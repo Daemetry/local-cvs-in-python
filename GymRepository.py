@@ -1,17 +1,14 @@
 import argparse
-import sys
-from collections import namedtuple
-
 from Files import *
 from Commit import Commit
 from GymException import GymException
+
 
 def library_init():
     Commit.set_commit_directory(GymRepository.objects)
 
 
 class GymRepository:
-
     _repository_directory = ".gym"
     _repository_structure = {
         "HEAD": "ref: refs/branch/boss",
@@ -40,10 +37,6 @@ class GymRepository:
     def get_ref(name, reftype):
         name = os.path.split(name)[1]
         return f"{GymRepository._repository_directory}/refs/{reftype}/{name}"
-
-    # @staticmethod
-    # def serialize_commit(commit: str):
-    #     return [prop.split(": ")[1] for prop in commit.split('\n')]
 
     @staticmethod
     def _index_to_tree():
@@ -78,19 +71,6 @@ class GymRepository:
                 new_index.append(file)
         with open(GymRepository.index, 'w') as index:
             index.write(str.join('\n', new_index))
-
-    @staticmethod
-    def _test(args):
-
-        print(Commit.diff(args[0], args[1]))
-
-    @staticmethod
-    def _htt(args):
-        print(unblobify(args[0], GymRepository.objects).decode(encoding))
-
-    @staticmethod
-    def _test_runtime():
-        raise BaseException
 
     @staticmethod
     def _restore(filename, filehash):
@@ -138,7 +118,6 @@ class GymRepository:
 
     @staticmethod
     def _update_index(path):
-        """"""
 
         GymRepository.assert_repo()
 
@@ -289,9 +268,6 @@ class GymRepository:
 
         pch = GymRepository._get_current_commit_hash(detached_ok=True)
         prev_commit = Commit.unhash(pch)
-
-        # todo a class?
-        # выделить класс индексов чи шо?
         prev_commit_index = unblobify(prev_commit.tree_hash, GymRepository.objects).decode(encoding)
 
         # if there are uncommitted changes and no --force is present,
@@ -411,12 +387,12 @@ class GymRepository:
         for filename in incoming_commit_filenames.difference(both_commits_filenames):
             GymRepository._restore(filename, incoming_commit_files[filename])
 
-        non_conflicted_files = {non_conflicted_file: current_commit_files[non_conflicted_file]
-                                for non_conflicted_file in
-                                     current_commit_filenames.difference(both_commits_filenames)}
-        non_conflicted_files.update({non_conflicted_file: incoming_commit_files[non_conflicted_file]
-                                for non_conflicted_file in
-                                     incoming_commit_filenames.difference(both_commits_filenames)})
+        non_conflicted_files = \
+            {non_conflicted_file: current_commit_files[non_conflicted_file]
+             for non_conflicted_file in current_commit_filenames.difference(both_commits_filenames)}
+        non_conflicted_files.update(
+            {non_conflicted_file: incoming_commit_files[non_conflicted_file]
+             for non_conflicted_file in incoming_commit_filenames.difference(both_commits_filenames)})
 
         for filename in both_commits_filenames:
             if current_commit_files[filename] == incoming_commit_files[filename]:
@@ -439,11 +415,11 @@ class GymRepository:
         ):
             with open(GymRepository.head) as head:
                 current_branch = head.read().split(": ")[1].split("/")[-1]
-            args_mocked = namedtuple("args", ["message"])(f"# Merged {args.branch} into {current_branch}")
-            # noinspection PyTypeChecker
-            GymRepository.commit(args_mocked)
+            commit_args = argparse.Namespace()
+            commit_args.message = f"# Merged {args.branch} into {current_branch}"
+            GymRepository.commit(commit_args)
         else:
-            print("Merge conflicts have occured. Resolve them manually, \n"
+            print("Merge conflicts have occurred. Resolve them manually, \n"
                   "then add and commit whatever changes necessary.")
 
     @staticmethod

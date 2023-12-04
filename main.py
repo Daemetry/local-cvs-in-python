@@ -1,5 +1,3 @@
-import os.path
-
 from GymRepository import *
 import sys
 from datetime import datetime
@@ -59,16 +57,6 @@ def main(args):
         case "tag":
             tag_args = tag_parser.parse_args()
             GymRepository.tag(tag_args)
-
-        # dev tools :)
-        case "--test":
-            GymRepository._test(flags)
-
-        case "--htt":
-            GymRepository._htt(flags)
-
-        case "--test-error":
-            GymRepository._test_runtime()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 from Files import blobify, unblobify, encoding
 from difflib import unified_diff
 
+
 class Commit:
     _commit_directory: str
 
@@ -115,15 +116,15 @@ class Commit:
         to_file = unblobify(to_file_hash, Commit._commit_directory).decode(encoding)
 
         diff = unified_diff(from_file.split('\n'), to_file.split('\n'))
-        diff = list(diff)[2:] # Skip the first two lines
+        diff = list(diff)[2:]
+        # Skip the first two lines
         # since its just file names (empty because none were given to the function)
+
         enumerated_diff = []
         deletions_counter = 0
         for i, diff_line in enumerate(diff):
             if diff_line.startswith('-') or diff_line.startswith('+'):
                 enumerated_diff.append((i - deletions_counter, diff_line))
                 deletions_counter += 1 if diff_line.startswith('-') else 0
-
-        # enumerated_diff = list(filter(lambda x: x[1].startswith('+') or x[1].startswith('-'), enumerated_diff))
 
         return enumerated_diff
